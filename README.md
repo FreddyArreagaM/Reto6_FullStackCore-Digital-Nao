@@ -17,5 +17,5 @@ Este repositorio contiene un backup de la base de datos, colecciones, datos impo
 1. Clona este repositorio:
 
    ```bash
-   git clone https://github.com/tu_usuario/tu_repositorio.git
-   cd tu_repositorio
+   git clone https://github.com/FreddyArreagaM/Reto6_FullStackCore-Digital-Nao.git
+ 
