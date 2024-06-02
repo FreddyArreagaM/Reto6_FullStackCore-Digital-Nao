@@ -17,7 +17,7 @@ Este repositorio contiene un backup de la base de datos, colecciones, datos impo
 
 ### Leer un restaurante por ID
 - **GET**: `/api/restaurant/:id`
-- **Descripción**: Permite obtener información de un restaurant específico de la base de datos.
+- **Descripción**: Permite obtener información de un restaurante específico de la base de datos.
 
 ### Actualizar un restaurante por ID
 - **PUT**: `/api/restaurant/:id`
