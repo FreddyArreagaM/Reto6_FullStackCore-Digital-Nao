@@ -28,11 +28,11 @@ Este repositorio contiene un backup de la base de datos, colecciones, datos impo
 - **Descripción**: Permite eliminar un restaurante específico de la base de datos mediante su ID.
 
 ### Agregar un comentario a un restaurante
-- **POST**: `/api/restaurants/:id/comments`
+- **POST**: `/api/restaurant/:id/comments`
 - **Descripción**: Permite agregar un comentario a un restaurante específico mediante su ID.
 
 ### Calificar un restaurante
-- **POST**: `/api/restaurants/:id/grades`
+- **POST**: `/api/restaurant/:id/grades`
 - **Descripción**: Permite agregar una calificación (score) a un restaurante específico mediante su ID.
 
 ## Requisitos
