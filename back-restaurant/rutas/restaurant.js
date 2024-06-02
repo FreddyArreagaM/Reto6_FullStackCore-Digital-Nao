@@ -7,7 +7,10 @@ const eschema = mongoose.Schema
 const eschemaRestaurant = new eschema({
     address: {
         building: String,
-        coord: [Number],
+        coord: {
+            type: [Number],
+            index: '2dsphere'
+        },
         street: String,
         zipcode: String
     },
@@ -40,39 +43,48 @@ router.get('/test', (req, res) => {
 //Crear un nuevo restaurant OK
 router.post('/', async (req, res) => {
     console.log(req.body); // Agrega esto para verificar el cuerpo de la solicitud
-    if (!req.body.address || !req.body.borough || !req.body.cuisine || !req.body.name || !req.body.restaurant_id) {
+    const { address, borough, cuisine, name, grades, comments } = req.body;
+
+    // Verificar que todos los campos requeridos están presentes
+    if (!address || !borough || !cuisine || !name) {
         return res.status(400).send('Todos los campos son requeridos');
-    } else{
-        const nuevoRestaurante = new ModelRestaurant({
-            address: {
-                building: req.body.address.building,
-                coord: req.body.address.coord,
-                street: req.body.address.street,
-                zipcode: req.body.address.zipcode
-            },
-            borough: req.body.borough,
-            cuisine: req.body.cuisine,
-            grades: req.body.grades || [],
-            comments: req.body.comments || [],
-            name: req.body.name,
-            restaurant_id: req.body.restaurant_id
-        });
-    
-        try {
-            const savedRestaurant = await nuevoRestaurante.save();
-            if(!savedRestaurant){
-                return res.status(404).send('Restaurante no agregado');
-            }else{
-                res.send('Restaurante agregado correctamente');
-            }
-        } catch (err) {
-            res.status(500).send(err);
+    }
+
+    // Verificar que las coordenadas sean un array de dos números
+    if (!Array.isArray(address.coord) || address.coord.length !== 2 || 
+        typeof address.coord[0] !== 'number' || typeof address.coord[1] !== 'number') {
+        return res.status(400).send('Las coordenadas deben ser un array de dos números [longitude, latitude]');
+    }
+
+    // Crear el nuevo restaurante
+    const nuevoRestaurante = new ModelRestaurant({
+        address: {
+            building: address.building,
+            coord: address.coord,
+            street: address.street,
+            zipcode: address.zipcode
+        },
+        borough: borough,
+        cuisine: cuisine,
+        grades: grades || [],
+        comments: comments || [],
+        name: name
+    });
+
+    try {
+        const savedRestaurant = await nuevoRestaurante.save();
+        if (!savedRestaurant) {
+            return res.status(404).send('Restaurante no agregado');
+        } else {
+            res.send('Restaurante agregado correctamente');
         }
+    } catch (err) {
+        res.status(500).send(err.message);
     }
 });
 
 // Leer todos los restaurantes OK
-router.get('/', async (req, res) => {
+router.get('/restaurants', async (req, res) => {
     try {
         const docs = await ModelRestaurant.find({}).exec();
         res.send(docs);
@@ -95,23 +107,51 @@ router.get('/:id', async (req, res) => {
 router.put('/:id', async (req, res) => {
     try {
         const restaurantId = req.params.id;
+        const {
+            address,
+            borough,
+            cuisine,
+            grades,
+            comments,
+            name,
+        } = req.body;
+
+        // Verificar que los campos requeridos están presentes
+        if (!address || !borough || !cuisine || !name) {
+            return res.status(400).send('Todos los campos son requeridos');
+        }
+
+        // Verificar que las coordenadas sean un array de dos números
+        if (!Array.isArray(address.coord) || address.coord.length !== 2 || 
+            typeof address.coord[0] !== 'number' || typeof address.coord[1] !== 'number') {
+            return res.status(400).send('Las coordenadas deben ser un array de dos números [longitude, latitude]');
+        }
+
+        // Preparar los datos actualizados
         const updatedData = {
-            address: req.body.address,
-            borough: req.body.borough,
-            cuisine: req.body.cuisine,
-            grades: req.body.grades,
-            comments: req.body.comments,
-            name: req.body.name,
-            restaurant_id: req.body.restaurant_id
+            address: {
+                building: address.building,
+                coord: address.coord,
+                street: address.street,
+                zipcode: address.zipcode
+            },
+            borough: borough,
+            cuisine: cuisine,
+            grades: grades || [],
+            comments: comments || [],
+            name: name,
         };
+
+        // Actualizar el restaurante
         const updatedRestaurant = await ModelRestaurant.findByIdAndUpdate(restaurantId, updatedData, { new: true });
+
         if (!updatedRestaurant) {
             return res.status(404).send('Restaurante no encontrado');
-        } else{
+        } else {
             res.send('Restaurante actualizado correctamente');
         }
     } catch (err) {
-        res.status(500).send(err);
+        res.status(500).send(err.message);
     }
 });
 
@@ -182,3 +222,44 @@ router.post('/:id/grades', async (req, res) => {
         res.status(500).send(err);
     }
 });
+
+// Lista los restaurantes según se filtre por medio de su nombre, tipo de comida, ciudad, calle o codigo postal. 
+router.get('/', async (req, res) => {
+    try {
+        const { search, longitude, latitude } = req.query;
+
+        if (!longitude || !latitude) {
+            return res.status(400).json({ error: "Los parámetros 'longitude' y 'latitude' son requeridos" });
+        }
+
+        // Crear el filtro usando el parámetro de búsqueda
+        let filter = {};
+        if (search) {
+            filter = {
+                $or: [
+                    { name: { $regex: new RegExp(search, 'i') } },
+                    { cuisine: { $regex: new RegExp(search, 'i') } },
+                    { borough: { $regex: new RegExp(search, 'i') } },
+                    { 'address.street': { $regex: new RegExp(search, 'i') } },
+                    { 'address.zipcode': { $regex: new RegExp(search, 'i') } }
+                ]
+            };
+        }
+
+        // Ejecutar la consulta geoespacial
+        const restaurants = await ModelRestaurant.find(filter)
+            .near('address.coord', {
+                center: [parseFloat(longitude), parseFloat(latitude)],
+                spherical: true
+            });
+
+        res.json(restaurants);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+
+  
+  
